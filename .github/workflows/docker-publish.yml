@@ -36,10 +36,33 @@ jobs:
                       giswqs/geemap
                       ghcr.io/${{ github.repository }}
 
+            - name: Report deploy start to Rollouts
+              id: rollouts
+              env:
+                  CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+                  CHANGE_MONITOR_ENV: push_to_registries
+                  CHANGE_MONITOR_SERVICE: geemap
+                  DEPLOY_VERSION: ${{ github.sha }}
+                  CHANGE_MONITOR_ACTOR: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+              run: |
+                  bash .github/scripts/rollouts-reporter.sh bootstrap
+                  bash .github/scripts/rollouts-reporter.sh start
             - name: Build and push Docker images
+              id: ship
               uses: docker/build-push-action@v7
               with:
                   context: .
                   push: true
                   tags: ${{ steps.meta.outputs.tags }}
                   labels: ${{ steps.meta.outputs.labels }}
+            - name: Report deploy finish to Rollouts
+              if: always()
+              env:
+                  CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+                  CHANGE_MONITOR_ENV: push_to_registries
+                  CHANGE_MONITOR_SERVICE: geemap
+                  DEPLOY_VERSION: ${{ github.sha }}
+                  CHANGE_MONITOR_ACTOR: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+                  ROLLOUTS_DEPLOYMENT: ${{ steps.rollouts.outputs.deployment }}
+                  ROLLOUTS_OUTCOME: ${{ steps.ship.outcome }}
+              run: bash .github/scripts/rollouts-reporter.sh finish
